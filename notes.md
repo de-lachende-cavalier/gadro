@@ -24,4 +24,4 @@
 
 - "The fact that the models obtained after the ablation of high level information (speaker/no-speaker, face location) produce significantly lower scores, highlights the causal effect of the presence of (talking) faces, or more generally top down cues, on attention allocation. This fact has been previously demonstrated in the psychological field..."
 
-- "Expression perception is one fundamental mean for our understanding of and engagement in social interactions. This aspect is intimately related to the notion of value pro- posed in our work, which represents as a matter of fact a doorway to intertwine attention, cognition and emotion."
+- "Expression perception is one fundamental mean for our understanding of and engagement in social interactions. This aspect is intimately related to the notion of value proposed in our work, which represents as a matter of fact a doorway to intertwine attention, cognition and emotion."
