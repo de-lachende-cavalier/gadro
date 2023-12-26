@@ -7,6 +7,7 @@ CMakeLists.txt
 
 # project specific
 find_dataset/
+data_exploration/
 
 # C extensions
 *.so
