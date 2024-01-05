@@ -4,7 +4,7 @@
 
 ## Running the code
 
-The code uses `python 3.11.6`. To run it, do the following:
+The code uses `python 3.11.7`. To run it, do the following:
 
 1. Get the data from phuselab's SFTP server.
     1. (optional) Spin up a virtual environment.

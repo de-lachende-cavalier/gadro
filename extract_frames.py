@@ -22,11 +22,10 @@ def extract_frames_from_video(video_path, output_folder):
     video.release()
 
 
-if __name__ == "__main__":
-    video_path = "find_dataset/Our_database/raw_videos/"
+video_path = "find_dataset/Our_database/raw_videos/"
 
-    for name in os.listdir(video_path):
-        if name.endswith("mp4"):  # mp4 files only
-            output_folder = f"find_dataset/frames/{name[:3]}"
-            extract_frames_from_video(video_path + name, output_folder)
-            print(f"[+] Done extracting frames for {name}.")
+for name in os.listdir(video_path):
+    if name.endswith("mp4"):  # mp4 files only
+        output_folder = f"find_dataset/frames/{name[:3]}"
+        extract_frames_from_video(video_path + name, output_folder)
+        print(f"[+] Done extracting frames for {name}.")
