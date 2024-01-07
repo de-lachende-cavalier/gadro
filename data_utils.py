@@ -1,6 +1,16 @@
+"""
+This Python file contains utilities for directly interacting with the data in find_dataset/.
+
+Functions:
+    merge_and_encode_fetures - Combines speaker and non-speaker marged maps for each frame and generates a one-hot encoded array denoting the patch corresponding to the speaker.
+
+    get_frames_by_type - Returns either one frame or all the frames pertaining to a video, given their type (whether they come from find_dataset/frames or find_dataset/dynamic).
+"""
+
 import os
 import re
 import cv2
+import numpy as np
 
 
 def get_frames_by_type(frame_type, video_title, target_frame=None):
@@ -19,26 +29,47 @@ def get_frames_by_type(frame_type, video_title, target_frame=None):
     return frames
 
 
-def get_merged_maps(video_title, target_frame=None, speaker=True, non_speaker=True):
+def merge_and_encode_features(video_title, target_frame=None):
     init_path = os.path.join("find_dataset", "merged_maps", video_title)
 
-    frames = []
-    speaker_info = []
+    merged_frames = []
+    speaker_frames = []
+
+    # to store speaker and non-speaker frames separately
+    temp_frames = {}
     for frame_name in sorted(os.listdir(init_path), key=_extract_frame_number):
+        frame_number = _extract_frame_number(frame_name)
         is_nonspeaker_frame = "nonspeaker" in frame_name
 
-        if (non_speaker and is_nonspeaker_frame) or (
-            speaker and not is_nonspeaker_frame
-        ):
-            frame = cv2.imread(os.path.join(init_path, frame_name))
+        if not frame_number in temp_frames:
+            temp_frames[frame_number] = {"speaker": None, "non_speaker": None}
 
-            if target_frame == _extract_frame_number(frame_name):
-                return frame, [not is_nonspeaker_frame]
+        frame = cv2.imread(os.path.join(init_path, frame_name), cv2.IMREAD_GRAYSCALE)
 
-            frames.append(frame)
-            speaker_info.append(not is_nonspeaker_frame)
+        if is_nonspeaker_frame:
+            temp_frames[frame_number]["non_speaker"] = frame
+        else:
+            temp_frames[frame_number]["speaker"] = frame
 
-    return frames, speaker_info
+        if target_frame is not None and target_frame == frame_number:
+            merged_frame, one_hot_array = _process_frame(temp_frames[frame_number])
+            return merged_frame, one_hot_array
+
+    for frame_number, frames in temp_frames.items():
+        merged_frame, speaker_frame = _process_frame(frames)
+        merged_frames.append(merged_frame)
+        speaker_frames.append(speaker_frame)
+
+    return merged_frames, speaker_frames
+
+
+def _process_frame(frames):
+    # merge speaker and non-speaker frames using bitwise 'or'
+    merged_frame = cv2.bitwise_or(frames["speaker"], frames["non_speaker"])
+    # set to white all pixels that correspond exclusively to the speaker
+    speaker_frame = (frames["speaker"] == 255).astype(np.uint8)
+
+    return merged_frame, speaker_frame
 
 
 def _extract_frame_number(filename):
