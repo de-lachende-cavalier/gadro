@@ -1,14 +1,22 @@
+"""
+This Python file contains utilities for preprocessing the data, before feeding it to the RL agent.
+
+The functions whose name begins with an underscore are considered "private", i.e., only meant for internal use within this file. They're undocumented because they're quite self explanatory and short.
+
+Functions:
+    preproces_feature_frames - Returns all the useful information extracted from the merged maps: the bounding boxes of the various patches, their centers, and a boolean array denoting which patch corresponds to the speaker. 
+
+    compute_patch_weights - Computes some weights corresponding to each patch, for each frame. These weights could be interpreted as probabilities, because they're calculated as such: for each video, we get the data from all the subjects and count how many subjects have observed which patch for each frame, then normalise. It returns the weights for all the frames.
+"""
 import cv2
 import numpy as np
-
-from scipy.io import loadmat
 from scipy.spatial.distance import euclidean
 
-from data_utils import merge_and_encode_features
+from data_utils import get_feature_frames, get_mat_data
 
 
-def preprocess_frame_features(filename):
-    merged_frames, speaker_frames = merge_and_encode_features(filename)
+def preprocess_feature_frames(vid_filename):
+    merged_frames, speaker_frames = get_feature_frames(vid_filename)
 
     # an array of bounding boxes, indexed by frame number
     bounding_boxes = []
@@ -32,43 +40,29 @@ def preprocess_frame_features(filename):
     return bounding_boxes, patch_centres, speaker_info
 
 
-# TODO the patch centres are not as I expect!! => before I only had them for one frame, now I have them for all frames ==> they're a list of lists of tuples!! => problem, cause lists are unhashable
-def preprocess_mat_data(filename, patch_centres):
-    base = "find_dataset/Our_database/fix_data_NEW/"
+def compute_patch_weights(mat_filename, patch_centres):
+    fix_data, num_subjects, num_frames = get_mat_data(mat_filename)
 
-    mat_data = loadmat(base + filename)
-    # (39, 1) nparray, one entry per subject
-    # to get the actual data do fix_data[subject_idx][0] => (600, 2)
-    fix_data = mat_data["curr_v_all_s"]
-
-    num_subjects = fix_data.shape[0]
-    num_frames = 600
-
-    # we will assign a weight to each patch, dependeing on the number of subjects that were observing it at some time t => the bigger the number of subjects observing it, the higher the weight
-    # this same weight will influence reward: if the agent chooses a patch with high weight, it gets a high reward, more or less
-    # considering that we're normalising things, these could very well be regarded as probabilities that some "average human" pays attention to some patch
-    attended_patch_centres = []
+    # we will assign a weight to each patch (for each frame), depending on the number of subjects that were observing it, this is done as a form of basic feature engineering
     frame_patch_weights = [
-        {center: 0 for center in patch_centres} for _ in range(num_frames)
+        {center: 0 for center in patch_centres[i]} for i in range(num_frames)
     ]
     for subject_idx in range(num_subjects):
         subject_data = fix_data[subject_idx][0]
 
         for frame_idx in range(num_frames):
             gaze_point = subject_data[frame_idx]
-            closest_patch_centre = _find_closest_patch(gaze_point, patch_centres)
-            # the patch that is attended to is the one closest to the gaze point
-            attended_patch_centres.append(closest_patch_centre)
-
+            closest_patch_centre = _find_closest_patch(
+                gaze_point, patch_centres[frame_idx]
+            )
             frame_patch_weights[frame_idx][closest_patch_centre] += 1
 
-    # normalise
-    for frame_idx in range(num_frames):
-        total_gazes = sum(frame_patch_weights[frame_idx].values())
-        for patch in frame_patch_weights[frame_idx]:
-            frame_patch_weights[frame_idx][patch] /= total_gazes
+            # normalise
+            total_gazes = sum(frame_patch_weights[frame_idx].values())
+            for patch in frame_patch_weights[frame_idx]:
+                frame_patch_weights[frame_idx][patch] /= total_gazes
 
-    return attended_patch_centres, frame_patch_weights
+    return frame_patch_weights
 
 
 def _detect_patches(image):
@@ -131,22 +125,23 @@ if __name__ == "__main__":
 
         print("test_find_closest_patch passed!")
 
-    def test_preprocess_mat_data(file_name, patch_centers):
-        _, weights = preprocess_mat_data(file_name, patch_centers)
+    def test_compute_patch_weights(mat_filename, patch_centers):
+        weights = compute_patch_weights(mat_filename, patch_centers)
 
+        _, _, num_frames = get_mat_data(mat_filename)
         # check if weights sum to 1 for each frame
-        for frame_idx in range(600):
+        for frame_idx in range(num_frames):
             total_weight = sum(weights[frame_idx].values())
             assert np.isclose(
                 total_weight, 1
             ), f"Weights do not sum to 1 for frame {frame_idx}."
 
-        print("test_preprocess_mat_data passed!")
+        print("test_compute_patch_weights passed!")
 
     test_detect_patches()
     test_find_closest_patch()
 
-    boxes, centres, speaker_info = preprocess_frame_features("012")
+    boxes, centres, speaker_info = preprocess_feature_frames("012")
     # there are four people in the video
     assert all(len(box) == 4 for box in boxes)
     assert all(len(centre) == 4 for centre in centres)
@@ -154,4 +149,4 @@ if __name__ == "__main__":
     # there's almost alwyas one speaker, apart from the final few seconds
     assert all(sum(sinfo) <= 2 for sinfo in speaker_info)
 
-    test_preprocess_mat_data("012.mat", centres)
+    test_compute_patch_weights("012.mat", centres)

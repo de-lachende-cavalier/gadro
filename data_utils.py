@@ -1,16 +1,35 @@
 """
 This Python file contains utilities for directly interacting with the data in find_dataset/.
 
+The functions whose name begins with an underscore are considered "private", i.e., only meant for internal use within this file. They're undocumented because they're quite self explanatory and short.
+
 Functions:
-    merge_and_encode_fetures - Combines speaker and non-speaker marged maps for each frame and generates a one-hot encoded array denoting the patch corresponding to the speaker.
+    get_mat_data - Returns the MATLAB data in a format suitable for python (numpy arrays), together with some extra information (the number of subjects and the number of frames), given a certain .mat filename.
 
     get_frames_by_type - Returns either one frame or all the frames pertaining to a video, given their type (whether they come from find_dataset/frames or find_dataset/dynamic).
+
+    get_feature_frames - Combines speaker and non-speaker marged maps for each frame into a single frame (instead of two) and generates a frame highlighting the speaker (i.e., a bitmap where the white patch designates the speaker).
 """
 
 import os
 import re
 import cv2
 import numpy as np
+from scipy.io import loadmat
+
+
+def get_mat_data(mat_filename):
+    base = "find_dataset/Our_database/fix_data_NEW/"
+
+    mat_data = loadmat(base + mat_filename)
+
+    # (39, 1) ndarray, one entry per subject, to get the actual data do
+    fix_data = mat_data["curr_v_all_s"]  # (39, 1) ndarray
+    num_subjects = fix_data.shape[0]
+    # fix_data[subject_idx][0] => (num_frames, 2) ndarray
+    num_frames = fix_data[0][0].shape[0]  # every subject watches the same video
+
+    return fix_data, num_subjects, num_frames
 
 
 def get_frames_by_type(frame_type, video_title, target_frame=None):
@@ -29,7 +48,7 @@ def get_frames_by_type(frame_type, video_title, target_frame=None):
     return frames
 
 
-def merge_and_encode_features(video_title, target_frame=None):
+def get_feature_frames(video_title, target_frame=None):
     init_path = os.path.join("find_dataset", "merged_maps", video_title)
 
     merged_frames = []
