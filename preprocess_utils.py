@@ -4,9 +4,9 @@ This Python file contains utilities for preprocessing the data, before feeding i
 The functions whose name begins with an underscore are considered "private", i.e., only meant for internal use within this file. They're undocumented because they're quite self explanatory and short.
 
 Functions:
-    preproces_feature_frames - Returns all the useful information extracted from the merged maps: the bounding boxes of the various patches, their centers, and a boolean array denoting which patch corresponds to the speaker. 
+    compute_frame_features - Returns all the useful information (features) extracted from the frames containing the merged maps, for a single video: the bounding boxes of the various patches, their centers, and a boolean array denoting which patch corresponds to the speaker. 
 
-    compute_patch_weights - Computes some weights corresponding to each patch, for each frame. These weights could be interpreted as probabilities, because they're calculated as such: for each video, we get the data from all the subjects and count how many subjects have observed which patch for each frame, then normalise. It returns the weights for all the frames.
+    compute_foa_features - Returns all the useful information (features) extracted from the MATLAB files, for a single video and all subjects: a list of lists containing the FoAs of each subject at each frame and a list of lists containing some weights, quantifying, roughly, the probability that any of the 39 subjects pays attention to some FoA at some time t.
 """
 import cv2
 import numpy as np
@@ -15,7 +15,7 @@ from scipy.spatial.distance import euclidean
 from data_utils import get_feature_frames, get_mat_data
 
 
-def preprocess_feature_frames(vid_filename):
+def compute_frame_features(vid_filename):
     merged_frames, speaker_frames = get_feature_frames(vid_filename)
 
     # an array of bounding boxes, indexed by frame number
@@ -40,13 +40,17 @@ def preprocess_feature_frames(vid_filename):
     return bounding_boxes, patch_centres, speaker_info
 
 
-def compute_patch_weights(mat_filename, patch_centres):
+def compute_foa_features(mat_filename, patch_centres):
     fix_data, num_subjects, num_frames = get_mat_data(mat_filename)
 
+    foa_centres = [
+        {subject: (0, 0) for subject in range(num_subjects)} for _ in range(num_frames)
+    ]
     # we will assign a weight to each patch (for each frame), depending on the number of subjects that were observing it, this is done as a form of basic feature engineering
     frame_patch_weights = [
         {center: 0 for center in patch_centres[i]} for i in range(num_frames)
     ]
+
     for subject_idx in range(num_subjects):
         subject_data = fix_data[subject_idx][0]
 
@@ -62,7 +66,9 @@ def compute_patch_weights(mat_filename, patch_centres):
             for patch in frame_patch_weights[frame_idx]:
                 frame_patch_weights[frame_idx][patch] /= total_gazes
 
-    return frame_patch_weights
+            foa_centres[frame_idx][subject_idx] = closest_patch_centre
+
+    return foa_centres, frame_patch_weights
 
 
 def _detect_patches(image):
@@ -126,7 +132,7 @@ if __name__ == "__main__":
         print("test_find_closest_patch passed!")
 
     def test_compute_patch_weights(mat_filename, patch_centers):
-        weights = compute_patch_weights(mat_filename, patch_centers)
+        _, weights = compute_foa_features(mat_filename, patch_centers)
 
         _, _, num_frames = get_mat_data(mat_filename)
         # check if weights sum to 1 for each frame
@@ -141,7 +147,7 @@ if __name__ == "__main__":
     test_detect_patches()
     test_find_closest_patch()
 
-    boxes, centres, speaker_info = preprocess_feature_frames("012")
+    boxes, centres, speaker_info = compute_frame_features("012")
     # there are four people in the video
     assert all(len(box) == 4 for box in boxes)
     assert all(len(centre) == 4 for centre in centres)

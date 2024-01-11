@@ -4,36 +4,62 @@ import pygame
 import gymnasium as gym
 from gymnasium import spaces
 
-from preprocess_utils import detect_patches, preprocess_mat_data
+from preprocess_utils import compute_frame_features, compute_foa_features
 
 
 class MarkovGazeEnv(gym.Env):
     """A Markovian gaze environment, i.e., one in which the next FoA (focus of attention) only depends on the current frame.
 
-    One doesn't expect just one frame to suffice for correct prediction, but this environments might serve as a useful baseline.
+    One doesn't expect just one frame to suffice for correct prediction, but this environment is mostly meant to serve as a useful baseline.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
+    # we create one env per video AND per subject => the environment should be oblivious to this!
+    # TODO!
     def __init__(
         self,
-        all_patch_coordinates,
-        all_patch_bounding_boxes,
-        patch_attention_weights,
+        patch_bounding_boxes,
+        patch_centres,
+        speaker_info,
+        foa_centres,
+        patch_weights_per_frame,
+        frame_idx=0,
+        frame_width=1280,
+        frame_height=720,
         render_mode=None,
     ):
-        assert len(all_patch_coordinates) > 0, "Patch coordinates list cannot be empty."
+        self.patch_bounding_boxes = patch_bounding_boxes
+        self.patch_centres = patch_centres
+        self.speaker_info = speaker_info
+        self.foa_centres = foa_centres
+        self.patch_weights_per_frame = patch_weights_per_frame
 
-        self.all_patch_coordinates = all_patch_coordinates  # TODO centres, you mean?
-        self.all_patch_bounding_boxes = all_patch_bounding_boxes
-        self.patch_attention_weights = patch_attention_weights
+        self.current_frame_idx = frame_idx
+        self.frame_width = frame_width
+        self.frame_height = frame_height
 
-        num_patches = len(all_patch_coordinates)
-        # observation space: bool array indicating attention on each patch
-        self.observation_space = spaces.Box(
-            low=0, high=1, shape=(num_patches,), dtype=np.int32
+        num_patches = len(self.patch_centres[0])
+        self.observation_space = spaces.Dict(
+            {
+                "patch_centres": spaces.Box(
+                    low=np.array([0, 0]),
+                    high=np.array([self.frame_width, self.frame_height]),
+                    shape=(num_patches, 2),
+                    dtype=np.float32,
+                ),
+                "patch_bounding_boxes": spaces.Box(
+                    low=0,
+                    high=max(self.frame_width, self.frame_height),
+                    shape=(num_patches, 4),
+                    dtype=np.float32,
+                ),
+                "speaker_info": spaces.MultiBinary(num_patches),
+                "current_attention": spaces.Box(
+                    low=0, high=1, shape=(num_patches,), dtype=np.float32
+                ),
+            }
         )
-        # action space: selecting a patch from all available patches
         self.action_space = spaces.Discrete(num_patches)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -41,10 +67,15 @@ class MarkovGazeEnv(gym.Env):
 
         self.window = None
         self.clock = None
-        self.current_attention = None  # attention flags for current patches
 
     def _get_observation(self):
-        return np.array(self.current_attention, dtype=np.int32)
+        observation = {
+            "patch_centres": self.patch_centres[self.current_frame_idx],
+            "patch_bounding_boxes": self.patch_bounding_boxes[self.current_frame_idx],
+            "speaker_info": self.speaker_info[self.current_frame_idx],
+            "current_attention": self.current_attention,
+        }
+        return observation
 
     def _get_info(self):
         # TODO what could I put here?
@@ -165,12 +196,16 @@ if __name__ == "__main__":
         except Exception as e:
             assert False, f"Render function threw an exception: {e}"
 
+    vid_filename = "012"
+    patch_bounding_boxes, patch_centres, speaker_info = compute_frame_features(
+        vid_filename
+    )
+    foa_centres, patch_weights = compute_foa_features(
+        vid_filename + ".mat", patch_centres
+    )
+
     env = MarkovGazeEnv(
-        all_patch_coordinates,
-        all_patch_bounding_boxes,
-        patch_attention_weights,
-        1280,
-        720,
+        patch_bounding_boxes, patch_centres, speaker_info, foa_centres, patch_weights
     )
 
     test_initialization(env)
