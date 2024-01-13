@@ -15,8 +15,7 @@ class MarkovGazeEnv(gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    # we create one env per video AND per subject => the environment should be oblivious to this!
-    # TODO!
+    # we create one env per video AND per subject
     def __init__(
         self,
         patch_bounding_boxes,
@@ -29,37 +28,50 @@ class MarkovGazeEnv(gym.Env):
         frame_height=720,
         render_mode=None,
     ):
-        self.patch_bounding_boxes = patch_bounding_boxes
-        self.patch_centres = patch_centres
-        self.speaker_info = speaker_info
-        self.foa_centres = foa_centres
-        self.patch_weights_per_frame = patch_weights_per_frame
+        self.patch_bounding_boxes_all_frames = patch_bounding_boxes
+        self.patch_centres_all_frames = patch_centres
+        self.speaker_info_all_frames = speaker_info
+        self.foa_centres_all_frames = foa_centres
+        self.patch_weights_all_frames = patch_weights_per_frame
 
         self.current_frame_idx = frame_idx
         self.frame_width = frame_width
         self.frame_height = frame_height
 
-        num_patches = len(self.patch_centres[0])
+        num_patches = len(
+            self.patch_centres_all_frames[0]
+        )  # they're the same number across frames
+
+        # each observation corresponds to all the details about ONE frame (the env is markovian, after all)
         self.observation_space = spaces.Dict(
             {
                 "patch_centres": spaces.Box(
-                    low=np.array([0, 0]),
-                    high=np.array([self.frame_width, self.frame_height]),
+                    low=np.zeros((num_patches, 2)),
+                    high=np.array(
+                        [self.frame_width, self.frame_height] * num_patches
+                    ).reshape(num_patches, 2),
                     shape=(num_patches, 2),
                     dtype=np.float32,
                 ),
                 "patch_bounding_boxes": spaces.Box(
-                    low=0,
-                    high=max(self.frame_width, self.frame_height),
+                    low=np.zeros((num_patches, 4)),
+                    high=np.array(
+                        [
+                            self.frame_width,
+                            self.frame_height,
+                            self.frame_width,
+                            self.frame_height,
+                        ]
+                        * num_patches
+                    ).reshape(num_patches, 4),
                     shape=(num_patches, 4),
                     dtype=np.float32,
                 ),
                 "speaker_info": spaces.MultiBinary(num_patches),
-                "current_attention": spaces.Box(
-                    low=0, high=1, shape=(num_patches,), dtype=np.float32
-                ),
+                "attended_patch_idx": spaces.Discrete(num_patches),
             }
         )
+        # choose which patch to attend to, by choosing the correct index to use
         self.action_space = spaces.Discrete(num_patches)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -69,11 +81,15 @@ class MarkovGazeEnv(gym.Env):
         self.clock = None
 
     def _get_observation(self):
+        """Selects the right frame to present as an observation, given the information regarding alle the frames."""
+
         observation = {
-            "patch_centres": self.patch_centres[self.current_frame_idx],
-            "patch_bounding_boxes": self.patch_bounding_boxes[self.current_frame_idx],
-            "speaker_info": self.speaker_info[self.current_frame_idx],
-            "current_attention": self.current_attention,
+            "patch_centres": self.patch_centres_all_frames[self.current_frame_idx],
+            "patch_bounding_boxes": self.patch_bounding_boxes_all_frames[
+                self.current_frame_idx
+            ],
+            "speaker_info": self.speaker_info_all_frames[self.current_frame_idx],
+            "current_attention": self.foa_centres_all_frames[self.current_frame_idx],
         }
         return observation
 
@@ -86,7 +102,6 @@ class MarkovGazeEnv(gym.Env):
         super().reset(seed=seed)
 
         self.current_frame_idx = 0  # reset the frame counter
-        self.action_space = spaces.Discrete(len(self.current_attention))
         observation = self._get_observation()
         info = self._get_info()
 
@@ -96,20 +111,21 @@ class MarkovGazeEnv(gym.Env):
         return observation, info
 
     def step(self, action):
-        assert self.action_space.contains(action), "Invalid action."
-
-        chosen_patch = self.all_patch_coordinates[action]
-
-        correct_guess = self.current_attention[
+        chosen_patch_centre = self.patch_centres_all_frames[self.current_frame_idx][
             action
-        ]  # True if the patch is attended by humans
-        attention_weight = self.attention_weights[self.current_frame_idx][chosen_patch]
-        reward = attention_weight if correct_guess else 0
+        ]
 
+        attention_weight = self.patch_weights_all_frames[self.current_frame_idx][action]
+
+        self.current_frame_idx += 1
         observation = self._get_observation()
         info = self._get_info()
 
-        terminated = self.current_frame_idx >= 600  # 20s at 30 FPS
+        correct_guess = observation["current_attention"] == chosen_patch_centre
+        # TODO some more reward engineering!
+        reward = attention_weight if correct_guess else 0
+
+        terminated = self.current_frame_idx >= len(self.patch_bounding_boxes_all_frames)
 
         if self.render_mode == "human":
             self._render_frame()
@@ -169,48 +185,54 @@ class MarkovGazeEnv(gym.Env):
 # impromptu testing code
 if __name__ == "__main__":
 
-    def test_initialization(env):
-        assert env is not None, "Environment not initialized."
-        assert env.observation_space is not None, "Observation space not initialized."
-        assert env.action_space is not None, "Action space not initialized."
-        print("Initialization test passed.")
+    def test_initialisation(env):
+        assert env.frame_width == 1280
+        assert env.frame_height == 720
+        assert env.observation_space != None
+        assert env.action_space != None
 
-    def test_step_function(env):
-        initial_observation, _ = env.reset()
-        action = env.action_space.sample()
-        observation, reward, done, _ = env.step(action)
-        assert observation is not None, "Observation not returned by step function."
-        assert isinstance(reward, float), "Reward not returned as float."
-        assert isinstance(done, bool), "Done flag not returned as bool."
-        print("Step function test passed.")
+        print("test_initialisation passed!")
 
-    def test_reset_function(env):
-        observation, _ = env.reset()
-        assert observation is not None, "Observation not returned by reset function."
-        print("Reset function test passed.")
+    def test_reset(env):
+        observation, info = env.reset()
+        assert env.current_frame_idx == 0
+        assert "patch_centres" in observation
 
-    def test_render_function(env):
-        try:
-            env.render()
-            print("Render function test passed.")
-        except Exception as e:
-            assert False, f"Render function threw an exception: {e}"
+        print("test_reset passed!")
 
-    vid_filename = "012"
-    patch_bounding_boxes, patch_centres, speaker_info = compute_frame_features(
-        vid_filename
-    )
-    foa_centres, patch_weights = compute_foa_features(
-        vid_filename + ".mat", patch_centres
-    )
+    def test_step(env):
+        env.reset()
+        action = 0  # Assuming this is a valid action
+        observation, reward, terminated, _, info = env.step(action)
+
+        assert env.current_frame_idx == 1
+        assert reward != None
+        assert "patch_centres" in observation
+
+        print("test_step passed!")
+
+    def test_close(env):
+        env.close()
+        assert env.window == None
+
+        print("test_close passed!")
+
+    # use just two, hand-crafted, frames
+    patch_bounding_boxes = [[(0, 0, 100, 100)]] * 2
+    patch_centres = [[(50, 50)]] * 2
+    speaker_info = [[True]] * 2
+    foa_centres = [[(50, 50)]] * 2
+    patch_weights_per_frame = [[1.0]] * 2
 
     env = MarkovGazeEnv(
-        patch_bounding_boxes, patch_centres, speaker_info, foa_centres, patch_weights
+        patch_bounding_boxes,
+        patch_centres,
+        speaker_info,
+        foa_centres,
+        patch_weights_per_frame,
     )
 
-    test_initialization(env)
-    test_step_function(env)
-    test_reset_function(env)
-    test_render_function(env)
-
-    env.close()
+    test_initialisation(env)
+    test_reset(env)
+    test_step(env)
+    test_close(env)
