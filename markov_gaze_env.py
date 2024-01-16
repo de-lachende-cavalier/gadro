@@ -68,6 +68,7 @@ class MarkovGazeEnv(gym.Env):
                     dtype=np.float32,
                 ),
                 "speaker_info": spaces.MultiBinary(num_patches),
+                # below is the "label"
                 "attended_patch_idx": spaces.Discrete(num_patches),
             }
         )
@@ -115,7 +116,9 @@ class MarkovGazeEnv(gym.Env):
             action
         ]
 
-        attention_weight = self.patch_weights_all_frames[self.current_frame_idx][action]
+        attention_weight = self.patch_weights_all_frames[self.current_frame_idx][
+            chosen_patch_centre
+        ]
 
         self.current_frame_idx += 1
         observation = self._get_observation()
@@ -222,7 +225,9 @@ if __name__ == "__main__":
     patch_centres = [[(50, 50)]] * 2
     speaker_info = [[True]] * 2
     foa_centres = [[(50, 50)]] * 2
-    patch_weights_per_frame = [[1.0]] * 2
+    patch_weights_per_frame = [
+        {center: 1.0 for center in foa_centres[i]} for i in range(2)
+    ]
 
     env = MarkovGazeEnv(
         patch_bounding_boxes,
@@ -231,6 +236,34 @@ if __name__ == "__main__":
         foa_centres,
         patch_weights_per_frame,
     )
+
+    test_initialisation(env)
+    test_reset(env)
+    test_step(env)
+    test_close(env)
+
+    # let's test thigs with actual data
+    vid_filename = "012"
+    patch_bounding_boxes, patch_centres, speaker_info = compute_frame_features(
+        vid_filename
+    )
+
+    foa_centres, patch_weights_per_frame = compute_foa_features(
+        vid_filename + ".mat", patch_centres
+    )
+    # the foa_centres are for all subjects, but the env is supposed to work only for one
+    target_subject = 0
+    foa_centres_single_subject = [frame[target_subject] for frame in foa_centres]
+
+    env = MarkovGazeEnv(
+        patch_bounding_boxes,
+        patch_centres,
+        speaker_info,
+        foa_centres_single_subject,
+        patch_weights_per_frame,
+    )
+
+    print("\n[+] Tests with real data:\n")
 
     test_initialisation(env)
     test_reset(env)
