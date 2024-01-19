@@ -28,12 +28,7 @@ def compute_frame_features(vid_filename):
         boxes_merged, centres_merged = _detect_patches(frame)
         boxes_speak, centres_speak = _detect_patches(speak_frame)
 
-        speaker_info.append(
-            [
-                (bs, cs) in zip(boxes_merged, centres_merged)
-                for bs, cs in zip(boxes_speak, centres_speak)
-            ]
-        )
+        speaker_info.append([centre in centres_speak for centre in centres_merged])
         patch_centres.append(centres_merged)
         bounding_boxes.append(boxes_merged)
 
@@ -104,6 +99,38 @@ def _find_closest_patch(gaze_point, patch_centres):
 # impromptu testing environment
 if __name__ == "__main__":
 
+    def test_compute_frame_features(vid_filename):
+        bounding_boxes, patch_centres, speaker_info = compute_frame_features(
+            vid_filename
+        )
+
+        merged_frames, speaker_frames = get_feature_frames(vid_filename)
+        num_frames = len(merged_frames)
+
+        assert len(bounding_boxes) == num_frames, "Bounding boxes length mismatch"
+        assert len(patch_centres) == num_frames, "Patch centres length mismatch"
+        assert len(speaker_info) == num_frames, "Speaker info length mismatch"
+
+        for boxes, centres, info in zip(bounding_boxes, patch_centres, speaker_info):
+            assert isinstance(boxes, list), "Bounding boxes are not in list format"
+            assert isinstance(centres, list), "Patch centres are not in list format"
+            assert isinstance(info, list), "Speaker info is not in list format"
+            assert all(
+                isinstance(centre, tuple) for centre in centres
+            ), "Patch centres are not tuples"
+
+        for frame_idx, (frame, speak_frame) in enumerate(
+            zip(merged_frames, speaker_frames)
+        ):
+            _, centres_merged = _detect_patches(frame)
+            _, centres_speak = _detect_patches(speak_frame)
+            for centre in centres_merged:
+                assert (centre in centres_speak) == speaker_info[frame_idx][
+                    centres_merged.index(centre)
+                ], "Speaker info accuracy mismatch"
+
+        print("test_compute_frame_features passed!")
+
     def test_detect_patches():
         # a simple binary image with known patches
         test_image = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -146,6 +173,9 @@ if __name__ == "__main__":
 
     test_detect_patches()
     test_find_closest_patch()
+
+    vid_filename = "012"
+    test_compute_frame_features(vid_filename)
 
     boxes, centres, speaker_info = compute_frame_features("012")
     # there are four people in the video
