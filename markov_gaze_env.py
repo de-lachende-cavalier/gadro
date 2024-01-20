@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import pygame
 
 import gymnasium as gym
@@ -37,6 +38,13 @@ class MarkovGazeEnv(gym.Env):
         self.current_frame_idx = frame_idx
         self.frame_width = frame_width
         self.frame_height = frame_height
+
+        # set of ints, containing indices of observed frames
+        self._observed_frames = set()
+        # useful for rendering, store the last action taken
+        self._last_action = None
+        # useful in the step method
+        self._num_frames = len(self.patch_bounding_boxes_all_frames)
 
         num_patches = len(
             self.patch_centres_all_frames[0]
@@ -102,16 +110,31 @@ class MarkovGazeEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
-        self.current_frame_idx = 0  # reset the frame counter
+        self.current_frame_idx = 0
+        self._observed_frames = set()
         observation = self._get_observation()
         info = self._get_info()
 
+        self._last_action = None
         if self.render_mode == "human":
             self._render_frame()
 
         return observation, info
 
     def step(self, action):
+        unseen_frames = list(
+            set(range(self._num_frames - 1)) - self._observed_frames
+        )  # we need to exclude the last frame from the selection process!
+
+        if unseen_frames:
+            self.current_frame_idx = random.choice(unseen_frames)
+        else:
+            self.current_frame_idx = random.choice(
+                range(self._num_frames - 1)
+            )  # we need to exclude the last frame from the selection process!
+
+        self._observed_frames.add(self.current_frame_idx)
+
         chosen_patch_centre = self.patch_centres_all_frames[self.current_frame_idx][
             action
         ]
@@ -121,15 +144,22 @@ class MarkovGazeEnv(gym.Env):
         ]
 
         self.current_frame_idx += 1
+        # don't add the next frame to the observed ones...
+        if self.current_frame_idx == self._num_frames - 1:
+            # except for the last one, because it can never be picked!
+            self._observed_frames.add(self.current_frame_idx)
+
         observation = self._get_observation()
         info = self._get_info()
 
         correct_guess = observation["current_attention"] == chosen_patch_centre
         # TODO some more reward engineering!
-        reward = attention_weight if correct_guess else 0
+        reward = (1 + attention_weight) if correct_guess else 0
 
-        terminated = self.current_frame_idx >= len(self.patch_bounding_boxes_all_frames)
+        # if you've observed all the frames in the environment once, terminate the episode
+        terminated = len(self._observed_frames) == self._num_frames
 
+        self._last_action = action
         if self.render_mode == "human":
             self._render_frame()
 
@@ -143,7 +173,7 @@ class MarkovGazeEnv(gym.Env):
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
-            self.window = pygame.display.set_mode((self.img_width, self.img_height))
+            self.window = pygame.display.set_mode((self.frame_width, self.frame_height))
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
 
@@ -152,11 +182,26 @@ class MarkovGazeEnv(gym.Env):
             np.transpose(image_frame, axes=(1, 0, 2))
         )
 
-        for index, bounding_box in enumerate(self.all_patch_bounding_boxes):
+        for index, bounding_box in enumerate(
+            self.patch_bounding_boxes_all_frames[self.current_frame_idx]
+        ):
             x, y, width, height = bounding_box
-            patch_color = (
-                (0, 255, 0) if self.current_attention[index] else (255, 0, 0)
-            )  # green if attended by human, red otherwise
+            human_color = (0, 255, 0)  # green for human attended patches
+            agent_color = (0, 0, 255)  # blue for agent attended patches
+            both_color = (255, 255, 0)  # yellow if both human and agent attend
+            none_color = (255, 0, 0)  # red if attended by neither
+
+            human_attends = self.speaker_info_all_frames[self.current_frame_idx][index]
+            agent_attends = self._last_action == index
+
+            if human_attends and agent_attends:
+                patch_color = both_color
+            elif human_attends:
+                patch_color = human_color
+            elif agent_attends:
+                patch_color = agent_color
+            else:
+                patch_color = none_color
 
             pygame.draw.rect(
                 canvas, patch_color, pygame.Rect(x, y, width, height), width=3
@@ -173,9 +218,8 @@ class MarkovGazeEnv(gym.Env):
             )
 
     def _get_current_image_frame(self):
-        return np.zeros(
-            (self.img_width, self.img_height, 3), dtype=np.uint8
-        )  # placeholder
+        # return a completely black frame
+        return np.zeros((self.frame_width, self.frame_height, 3), dtype=np.uint8)
 
     def close(self):
         if self.window is not None:
@@ -208,7 +252,7 @@ if __name__ == "__main__":
         action = 0  # Assuming this is a valid action
         observation, reward, terminated, _, info = env.step(action)
 
-        assert env.current_frame_idx == 1
+        assert env.current_frame_idx in range(len(env.patch_bounding_boxes_all_frames))
         assert reward != None
         assert "patch_centres" in observation
 
@@ -220,7 +264,42 @@ if __name__ == "__main__":
 
         print("test_close passed!")
 
-    # use just two, hand-crafted, frames
+    def test_random_frame_selection(env):
+        env.reset()
+        seen_frames = set()
+        for _ in range(100):  # arbitrary number
+            env.step(env.action_space.sample())  # random action
+            assert env.current_frame_idx not in seen_frames
+            seen_frames.add(env.current_frame_idx)
+        print("test_random_frame_selection passed!")
+
+    def test_termination_condition(env):
+        env.reset()
+        max_steps = (
+            len(env.patch_bounding_boxes_all_frames) * 2
+        )  # twice the number of frames as steps should suffice
+        step_count = 0
+
+        while step_count < max_steps:
+            action = env.action_space.sample()
+            _, _, terminated, _, _ = env.step(action)
+            step_count += 1
+
+            if terminated:
+                break
+
+        assert len(env._observed_frames) == len(env.patch_bounding_boxes_all_frames)
+        print("test_termination_condition passed!")
+
+    def test_render_method(env):
+        env.reset()
+        try:
+            env.render()
+            print("test_render_method passed!")
+        except Exception as e:
+            print(f"test_render_method failed: {e}")
+
+    # use just two hand-crafted frames
     patch_bounding_boxes = [[(0, 0, 100, 100)]] * 2
     patch_centres = [[(50, 50)]] * 2
     speaker_info = [[True]] * 2
@@ -268,4 +347,9 @@ if __name__ == "__main__":
     test_initialisation(env)
     test_reset(env)
     test_step(env)
+
+    test_random_frame_selection(env)
+    test_render_method(env)
+    test_termination_condition(env)
+
     test_close(env)
