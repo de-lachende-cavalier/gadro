@@ -89,17 +89,14 @@ class MarkovGazeEnv(gym.Env):
         self.window = None
         self.clock = None
 
-    def _get_observation(self):
-        """Selects the right frame to present as an observation, given the information regarding alle the frames."""
-
+    def _get_observation(self, frame_index):
         observation = {
-            "patch_centres": self.patch_centres_all_frames[self.current_frame_idx],
-            "patch_bounding_boxes": self.patch_bounding_boxes_all_frames[
-                self.current_frame_idx
-            ],
-            "speaker_info": self.speaker_info_all_frames[self.current_frame_idx],
-            "current_attention": self.foa_centres_all_frames[self.current_frame_idx],
+            "patch_centres": self.patch_centres_all_frames[frame_index],
+            "patch_bounding_boxes": self.patch_bounding_boxes_all_frames[frame_index],
+            "speaker_info": self.speaker_info_all_frames[frame_index],
+            "attended_patch_idx": self.foa_centres_all_frames[frame_index],
         }
+
         return observation
 
     def _get_info(self):
@@ -110,9 +107,13 @@ class MarkovGazeEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
-        self.current_frame_idx = 0
+        # select a random index to start from (but never the last one!)
+        self.current_frame_idx = random.choice(range(self._num_frames - 1))
+
+        # initialise the set
         self._observed_frames = set()
-        observation = self._get_observation()
+
+        observation = self._get_observation(self.current_frame_idx)
         info = self._get_info()
 
         self._last_action = None
@@ -122,39 +123,43 @@ class MarkovGazeEnv(gym.Env):
         return observation, info
 
     def step(self, action):
+        # this needs to be done right away, and only for the current frame
+        self._observed_frames.add(self.current_frame_idx)
+
+        # REWARD CALCULATION
+
+        # we can safely increment the frame index because we're sure that we'll get an index that's in the correct range
+        reward_index = self.current_frame_idx + 1
+
+        chosen_patch_centre = self.patch_centres_all_frames[reward_index][action]
+
+        attention_weight = self.patch_weights_all_frames[reward_index][
+            chosen_patch_centre
+        ]
+
+        reward_observation = self._get_observation(reward_index)
+        correct_guess = reward_observation["attended_patch_idx"] == chosen_patch_centre
+
+        reward = (1 + attention_weight) if correct_guess else 0
+
+        # STATE MANAGEMENT
+
+        # only add the reward frame to the observed ones if it's the final one
+        if reward_index == self._num_frames - 1:
+            # we need to do it manually (we can never choose it, so we'd never get to add it otherwise)
+            self._observed_frames.add(reward_index)
+
+        # we now need to choose the next frame
         unseen_frames = list(
             set(range(self._num_frames - 1)) - self._observed_frames
         )  # we need to exclude the last frame from the selection process!
 
-        if unseen_frames:
-            self.current_frame_idx = random.choice(unseen_frames)
-        else:
-            self.current_frame_idx = random.choice(
-                range(self._num_frames - 1)
-            )  # we need to exclude the last frame from the selection process!
+        # we return a default 0 if unseen_frames is empty (i.e., if we need to terminate an episode), to avoid annoying errors
+        self.current_frame_idx = random.choice(unseen_frames) if unseen_frames else 0
 
-        self._observed_frames.add(self.current_frame_idx)
-
-        chosen_patch_centre = self.patch_centres_all_frames[self.current_frame_idx][
-            action
-        ]
-
-        attention_weight = self.patch_weights_all_frames[self.current_frame_idx][
-            chosen_patch_centre
-        ]
-
-        self.current_frame_idx += 1
-        # don't add the next frame to the observed ones...
-        if self.current_frame_idx == self._num_frames - 1:
-            # except for the last one, because it can never be picked!
-            self._observed_frames.add(self.current_frame_idx)
-
-        observation = self._get_observation()
+        # get the actual next observation (the one the agent uses to act in the environment)
+        observation = self._get_observation(self.current_frame_idx)
         info = self._get_info()
-
-        correct_guess = observation["current_attention"] == chosen_patch_centre
-        # TODO some more reward engineering!
-        reward = (1 + attention_weight) if correct_guess else 0
 
         # if you've observed all the frames in the environment once, terminate the episode
         terminated = len(self._observed_frames) == self._num_frames
@@ -242,7 +247,9 @@ if __name__ == "__main__":
 
     def test_reset(env):
         observation, info = env.reset()
-        assert env.current_frame_idx == 0
+
+        assert env._observed_frames == set()
+        assert env.current_frame_idx in range(env._num_frames - 1)
         assert "patch_centres" in observation
 
         print("test_reset passed!")
@@ -252,7 +259,7 @@ if __name__ == "__main__":
         action = 0  # Assuming this is a valid action
         observation, reward, terminated, _, info = env.step(action)
 
-        assert env.current_frame_idx in range(len(env.patch_bounding_boxes_all_frames))
+        assert env.current_frame_idx in range(env._num_frames - 1)
         assert reward != None
         assert "patch_centres" in observation
 
@@ -298,6 +305,32 @@ if __name__ == "__main__":
             print("test_render_method passed!")
         except Exception as e:
             print(f"test_render_method failed: {e}")
+
+    def test_reward_calculation(
+        env, patch_centres, patch_weights, foa_centres_single_subject
+    ):
+        env.reset()
+
+        while True:
+            cur_index = env.current_frame_idx
+
+            action = env.action_space.sample()
+            _, reward, terminated, _, _ = env.step(action)
+
+            chosen_patch_centre = patch_centres[cur_index + 1][action]
+            attention_weight = patch_weights[cur_index + 1][chosen_patch_centre]
+            correct_guess = (
+                foa_centres_single_subject[cur_index + 1] == chosen_patch_centre
+            )
+            reward_manual = (1 + attention_weight) if correct_guess else 0
+
+            # if reward calculation works, we can also be sure that the frame succession in the step() method works!
+            assert reward_manual == reward
+
+            if terminated:
+                break
+
+        print("test_reward_calculation passed!")
 
     # use just two hand-crafted frames
     patch_bounding_boxes = [[(0, 0, 100, 100)]] * 2
@@ -351,5 +384,9 @@ if __name__ == "__main__":
     test_random_frame_selection(env)
     test_render_method(env)
     test_termination_condition(env)
+
+    test_reward_calculation(
+        env, patch_centres, patch_weights_per_frame, foa_centres_single_subject
+    )
 
     test_close(env)
