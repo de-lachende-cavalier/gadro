@@ -46,7 +46,7 @@ class MarkovGazeEnv(gym.Env):
         # useful in the step method
         self._num_frames = len(self.patch_bounding_boxes_all_frames)
 
-        num_patches = len(
+        self._num_patches = len(
             self.patch_centres_all_frames[0]
         )  # they're the same number across frames
 
@@ -54,15 +54,15 @@ class MarkovGazeEnv(gym.Env):
         self.observation_space = spaces.Dict(
             {
                 "patch_centres": spaces.Box(
-                    low=np.zeros((num_patches, 2)),
+                    low=np.zeros((self._num_patches, 2)),
                     high=np.array(
-                        [self.frame_width, self.frame_height] * num_patches
-                    ).reshape(num_patches, 2),
-                    shape=(num_patches, 2),
+                        [self.frame_width, self.frame_height] * self._num_patches
+                    ).reshape(self._num_patches, 2),
+                    shape=(self._num_patches, 2),
                     dtype=np.float32,
                 ),
                 "patch_bounding_boxes": spaces.Box(
-                    low=np.zeros((num_patches, 4)),
+                    low=np.zeros((self._num_patches, 4)),
                     high=np.array(
                         [
                             self.frame_width,
@@ -70,18 +70,18 @@ class MarkovGazeEnv(gym.Env):
                             self.frame_width,
                             self.frame_height,
                         ]
-                        * num_patches
-                    ).reshape(num_patches, 4),
-                    shape=(num_patches, 4),
+                        * self._num_patches
+                    ).reshape(self._num_patches, 4),
+                    shape=(self._num_patches, 4),
                     dtype=np.float32,
                 ),
-                "speaker_info": spaces.MultiBinary(num_patches),
+                "speaker_info": spaces.MultiBinary(self._num_patches),
                 # below is the "label"
-                "attended_patch_idx": spaces.Discrete(num_patches),
+                "attended_patch_idx": spaces.Discrete(self._num_patches),
             }
         )
         # choose which patch to attend to, by choosing the correct index to use
-        self.action_space = spaces.Discrete(num_patches)
+        self.action_space = spaces.Discrete(self._num_patches)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -140,7 +140,12 @@ class MarkovGazeEnv(gym.Env):
         reward_observation = self._get_observation(reward_index)
         correct_guess = reward_observation["attended_patch_idx"] == chosen_patch_centre
 
-        reward = (1 + attention_weight) if correct_guess else 0
+        # reward the agent for picking the correct patch
+        # add a bonus based on how likely it is that the patch is picked by other subjects
+        # penalise agent if the wrong patch is picked, based on how many patches there are (the lower the number of patches, the higher the penalty)
+        reward = (
+            (1 + attention_weight) if correct_guess else -(1 + 1 / self._num_patches)
+        )
 
         # STATE MANAGEMENT
 
