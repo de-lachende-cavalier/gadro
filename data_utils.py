@@ -39,8 +39,9 @@ def get_frames_by_type(frame_type, video_title):
     frames = []
     for frame_name in sorted(os.listdir(init_path)):
         frame = cv2.imread(os.path.join(init_path, frame_name))
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        frames.append(frame)
+        frames.append(frame_rgb)
 
     return frames
 
