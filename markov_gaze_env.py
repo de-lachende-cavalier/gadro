@@ -24,7 +24,6 @@ class MarkovGazeEnv(gym.Env):
         speaker_info,
         foa_centres,
         patch_weights_per_frame,
-        frame_idx=0,
         frame_width=1280,
         frame_height=720,
         render_mode=None,
@@ -35,7 +34,6 @@ class MarkovGazeEnv(gym.Env):
         self.foa_centres_all_frames = foa_centres
         self.patch_weights_all_frames = patch_weights_per_frame
 
-        self.current_frame_idx = frame_idx
         self.frame_width = frame_width
         self.frame_height = frame_height
 
@@ -327,8 +325,10 @@ if __name__ == "__main__":
             correct_guess = (
                 foa_centres_single_subject[cur_index + 1] == chosen_patch_centre
             )
-            reward_manual = (1 + attention_weight) if correct_guess else 0
 
+            reward_manual = (
+                (1 + attention_weight) if correct_guess else -(1 + 1 / env._num_patches)
+            )
             # if reward calculation works, we can also be sure that the frame succession in the step() method works!
             assert reward_manual == reward
 
