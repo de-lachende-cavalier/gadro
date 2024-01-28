@@ -75,7 +75,9 @@ class MarkovGazeEnv(gym.Env):
                 ),
                 "speaker_info": spaces.MultiBinary(self._num_patches),
                 # below is the "label"
-                "attended_patch_idx": spaces.Discrete(self._num_patches),
+                "attended_patch_centre": spaces.Box(
+                    low=0.0, high=self.frame_width, shape=(1, 2), dtype=np.float32
+                ),
             }
         )
         # choose which patch to attend to, by choosing the correct index to use
@@ -92,7 +94,7 @@ class MarkovGazeEnv(gym.Env):
             "patch_centres": self.patch_centres_all_frames[frame_index],
             "patch_bounding_boxes": self.patch_bounding_boxes_all_frames[frame_index],
             "speaker_info": self.speaker_info_all_frames[frame_index],
-            "attended_patch_idx": self.foa_centres_all_frames[frame_index],
+            "attended_patch_centre": self.foa_centres_all_frames[frame_index],
         }
 
         return observation
@@ -136,14 +138,13 @@ class MarkovGazeEnv(gym.Env):
         ]
 
         reward_observation = self._get_observation(reward_index)
-        correct_guess = reward_observation["attended_patch_idx"] == chosen_patch_centre
+        correct_guess = (
+            reward_observation["attended_patch_centre"] == chosen_patch_centre
+        )
 
         # reward the agent for picking the correct patch
-        # add a bonus based on how likely it is that the patch is picked by other subjects
-        # penalise agent if the wrong patch is picked, based on how many patches there are (the lower the number of patches, the higher the penalty)
-        reward = (
-            (1 + attention_weight) if correct_guess else -(1 + 1 / self._num_patches)
-        )
+        # add a bonus based on how likely it is that the patch is picked by other subjects to push it a bit towards generalisation
+        reward = (1 + attention_weight) if correct_guess else 0
 
         # STATE MANAGEMENT
 
@@ -326,9 +327,7 @@ if __name__ == "__main__":
                 foa_centres_single_subject[cur_index + 1] == chosen_patch_centre
             )
 
-            reward_manual = (
-                (1 + attention_weight) if correct_guess else -(1 + 1 / env._num_patches)
-            )
+            reward_manual = (1 + attention_weight) if correct_guess else 0
             # if reward calculation works, we can also be sure that the frame succession in the step() method works!
             assert reward_manual == reward
 

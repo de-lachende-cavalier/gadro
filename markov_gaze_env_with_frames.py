@@ -75,7 +75,9 @@ class MarkovGazeEnvWithFrames(MarkovGazeEnv):
                     dtype=np.float32,
                 ),
                 "speaker_info": spaces.MultiBinary(self._num_patches),
-                "attended_patch_idx": spaces.Discrete(self._num_patches),
+                "attended_patch_centre": spaces.Box(
+                    low=0.0, high=self.frame_width, shape=(1, 2), dtype=np.float32
+                ),
             }
         )
 
@@ -99,7 +101,7 @@ class MarkovGazeEnvWithFrames(MarkovGazeEnv):
             "patches_frame": patches_frame,
             "patch_centres": self.patch_centres_all_frames[frame_index],
             "speaker_info": self.speaker_info_all_frames[frame_index],
-            "attended_patch_idx": self.foa_centres_all_frames[frame_index],
+            "attended_patch_centre": self.foa_centres_all_frames[frame_index],
         }
 
         return observation
