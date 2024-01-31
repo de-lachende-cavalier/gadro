@@ -32,14 +32,17 @@ def get_mat_data(mat_filename):
     return fix_data, num_subjects, num_frames
 
 
-def get_frames_by_type(frame_type, video_title):
+def get_frames_by_type(frame_type, video_title, target_idx=None):
     # frame_type denotes any subdirectory in find_dataset/ (apart from merged_maps)
     init_path = os.path.join("find_dataset", frame_type, video_title)
 
     frames = []
-    for frame_name in sorted(os.listdir(init_path)):
+    for i, frame_name in enumerate(sorted(os.listdir(init_path))):
         frame = cv2.imread(os.path.join(init_path, frame_name))
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        if i == target_idx:
+            return frame_rgb
 
         frames.append(frame_rgb)
 
