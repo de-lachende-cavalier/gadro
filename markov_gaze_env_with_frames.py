@@ -43,33 +43,33 @@ class MarkovGazeEnvWithFrames(MarkovGazeEnv):
             self.patch_centres_all_frames[0]
         )  # they're the same number across frames
 
-        frame_height = video_frames[0].shape[0]
-        frame_width = video_frames[0].shape[1]
+        self.frame_height = video_frames[0].shape[0]
+        self.frame_width = video_frames[0].shape[1]
 
         self.observation_space = spaces.Dict(
             {
                 "video_frame": spaces.Box(
                     low=0,
                     high=1,
-                    shape=(frame_height, frame_width, 3),
+                    shape=(self.frame_height, self.frame_width, 3),
                     dtype=np.uint8,
                 ),
                 "dynamics_frame": spaces.Box(
                     low=0,
                     high=1,
-                    shape=(frame_height, frame_width, 3),
+                    shape=(self.frame_height, self.frame_width, 3),
                     dtype=np.uint8,
                 ),
                 "patches_frame": spaces.Box(
                     low=0,
                     high=1,
-                    shape=(frame_height, frame_width),
+                    shape=(self.frame_height, self.frame_width),
                     dtype=np.uint8,
                 ),
                 "patch_centres": spaces.Box(
                     low=np.zeros((self._num_patches, 2)),
                     high=np.array(
-                        [frame_width, frame_height] * self._num_patches
+                        [self.frame_width, self.frame_height] * self._num_patches
                     ).reshape(self._num_patches, 2),
                     shape=(self._num_patches, 2),
                     dtype=np.float32,
