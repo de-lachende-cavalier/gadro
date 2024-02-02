@@ -8,11 +8,12 @@ Functions:
 
     compute_foa_features - Returns all the useful information (features) extracted from the MATLAB files, for a single video and all subjects: a list of lists containing the FoAs of each subject at each frame and a list of lists containing some weights, quantifying, roughly, the probability that any of the 39 subjects pays attention to some FoA at some time t.
 """
+
 import cv2
 import numpy as np
 from scipy.spatial.distance import euclidean
 
-from data_utils import get_feature_frames, get_mat_data
+from utils_data import get_feature_frames, get_mat_data
 
 
 def compute_frame_features(vid_filename):

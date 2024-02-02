@@ -5,7 +5,7 @@ import pygame
 import gymnasium as gym
 from gymnasium import spaces
 
-from preprocess_utils import compute_frame_features, compute_foa_features
+from utils_preprocess import compute_frame_features, compute_foa_features
 
 
 class MarkovGazeEnv(gym.Env):

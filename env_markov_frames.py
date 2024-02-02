@@ -2,7 +2,7 @@ import numpy as np
 
 from gymnasium import spaces
 
-from markov_gaze_env import MarkovGazeEnv
+from env_markov import MarkovGazeEnv
 
 
 class MarkovGazeEnvWithFrames(MarkovGazeEnv):
