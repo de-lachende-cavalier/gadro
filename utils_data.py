@@ -29,6 +29,11 @@ def get_mat_data(mat_filename):
     # fix_data[subject_idx][0] => (num_frames, 2) ndarray
     num_frames = fix_data[0][0].shape[0]  # every subject watches the same video
 
+    for subject_idx in range(num_subjects):
+        for frame_idx in range(num_frames):
+            coords = fix_data[subject_idx][0][frame_idx, :]
+            fix_data[subject_idx][0][frame_idx, :] = _adjust_coordinates(coords)
+
     return fix_data, num_subjects, num_frames
 
 
@@ -39,7 +44,9 @@ def get_frames_by_type(frame_type, video_title, target_idx=None):
     frames = []
     for i, frame_name in enumerate(sorted(os.listdir(init_path))):
         frame = cv2.imread(os.path.join(init_path, frame_name))
+
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_rgb = _resize_frame(frame_rgb)
 
         if i == target_idx:
             return frame_rgb
@@ -65,6 +72,7 @@ def get_feature_frames(video_title):
             temp_frames[frame_number] = {"speaker": None, "non_speaker": None}
 
         frame = cv2.imread(os.path.join(init_path, frame_name), cv2.IMREAD_GRAYSCALE)
+        frame = _resize_frame(frame)
 
         if is_nonspeaker_frame:
             temp_frames[frame_number]["non_speaker"] = frame
@@ -79,6 +87,27 @@ def get_feature_frames(video_title):
         speaker_frames.append(frames["speaker"])
 
     return merged_frames, speaker_frames
+
+
+def _resize_frame(frame, target_width=320, target_height=180):
+    return cv2.resize(frame, (target_width, target_height))
+
+
+def _adjust_coordinates(
+    coords,
+    original_width=1280,
+    original_height=720,
+    target_width=320,
+    target_height=180,
+):
+    x_scale = target_width / original_width
+    y_scale = target_height / original_height
+
+    adjusted_coords = np.copy(coords)
+    adjusted_coords[0] = coords[0] * x_scale
+    adjusted_coords[1] = coords[1] * y_scale
+
+    return adjusted_coords
 
 
 def _extract_frame_number(filename):
