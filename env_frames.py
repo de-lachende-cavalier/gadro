@@ -104,7 +104,7 @@ class FramesEnvironment(BaseEnvironment):
         self.window = None
         self.clock = None
 
-    def _get_observation(self, frame_index):
+    def _get_observation(self, frame_index, time_horizon=None):
         if time_horizon is None:
             time_horizon = self.T
 
@@ -144,6 +144,7 @@ class FramesEnvironment(BaseEnvironment):
                 "dynamics_frames": self.dynamics_frames[frame_idx],
                 "patches_frames": self.patches_frames[frame_idx],
                 "patch_centres": self.patch_centres_all_frames[frame_idx],
+                "speaker_info": self.speaker_info_all_frames[frame_idx],
                 "attended_patch_centres": self.foa_centres_all_frames[frame_idx],
             }
             for key in observation:
