@@ -153,8 +153,7 @@ class BaseEnvironment(gym.Env):
         return observation
 
     def _get_info(self):
-        # TODO what could I put here?
-        info = {}
+        info = {"current_frame_idx": self.current_frame_idx}
         return info
 
     def reset(self, seed=None, options=None):
