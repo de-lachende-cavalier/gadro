@@ -59,10 +59,13 @@ class GAILPrimePolicy(PPOPolicy):
         return super().process_fn(batch, buffer, indices)
 
     def disc(self, batch: Batch) -> torch.Tensor:
-        obs = to_torch(batch.obs, device=self.disc_net.device).float()
-        act = to_torch(batch.act, device=self.disc_net.device).float()
-        act = act.view(-1, 1)
-        return self.disc_net(torch.cat([obs, act], dim=1))
+        obs = batch.obs
+
+        act = to_torch(batch.act, device=self.disc_net.device).long()
+        n_classes = len(obs.speaker_info[0])  # how many patches there are
+        act = F.one_hot(act, num_classes=n_classes).float()
+
+        return self.disc_net(obs, act)
 
     def learn(  # type: ignore
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
