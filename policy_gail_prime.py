@@ -9,7 +9,7 @@ from tianshou.policy import PPOPolicy
 
 
 class GAILPrimePolicy(PPOPolicy):
-    """A customized GAIL policy, made to work with my environment."""
+    """A customized GAIL policy, made to work with our custom environments."""
 
     def __init__(
         self,
@@ -40,6 +40,7 @@ class GAILPrimePolicy(PPOPolicy):
             recompute_advantage,
             **kwargs,
         )
+
         self.disc_net = disc_net
         self.disc_optim = disc_optim
         self.disc_update_num = disc_update_num
@@ -49,10 +50,6 @@ class GAILPrimePolicy(PPOPolicy):
     def process_fn(
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
     ) -> Batch:
-        """Pre-process the data from the provided replay buffer.
-
-        Used in :meth:`update`. Check out :ref:`process_fn` for more information.
-        """
         # update reward
         with torch.no_grad():
             batch.rew = to_numpy(-F.logsigmoid(-self.disc(batch)).flatten())
@@ -67,7 +64,7 @@ class GAILPrimePolicy(PPOPolicy):
 
         return self.disc_net(obs, act)
 
-    def learn(  # type: ignore
+    def learn(
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
         # update discriminator
@@ -75,6 +72,7 @@ class GAILPrimePolicy(PPOPolicy):
         acc_pis = []
         acc_exps = []
         bsz = len(batch) // self.disc_update_num
+
         for b in batch.split(bsz, merge_last=True):
             logits_pi = self.disc(b)
             exp_b = self.expert_buffer.sample(bsz)[0]
@@ -88,9 +86,11 @@ class GAILPrimePolicy(PPOPolicy):
             losses.append(loss_disc.item())
             acc_pis.append((logits_pi < 0).float().mean().item())
             acc_exps.append((logits_exp > 0).float().mean().item())
+
         # update policy
         res = super().learn(batch, batch_size, repeat, **kwargs)
         res["loss/disc"] = losses
         res["stats/acc_pi"] = acc_pis
         res["stats/acc_exp"] = acc_exps
+
         return res

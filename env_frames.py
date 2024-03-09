@@ -8,7 +8,7 @@ from env_base import BaseEnvironment
 class FramesEnvironment(BaseEnvironment):
     """An evolution on the base environment, in which we also includes all the frame varieties we have at our disposal.
 
-    One would expect this extra information to improve performance (and, naturally, make training much more computationally demanding).
+    One would expect this extra information to improve performance (and, naturally, make training more computationally demanding).
     """
 
     def __init__(

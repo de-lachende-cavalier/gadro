@@ -1,3 +1,9 @@
+"""
+This Python file contains a utility for extracting single frames from a raw video, in PNG format.
+
+I have provided my own version because the one that came with the dataset didn't work...
+"""
+
 import cv2
 import os
 

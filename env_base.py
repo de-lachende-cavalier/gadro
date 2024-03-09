@@ -11,7 +11,7 @@ from utils_preprocess import compute_frame_features, compute_foa_features
 class BaseEnvironment(gym.Env):
     """The basic environment to build from and for our agent to operate in.
 
-    It can be Markovian or not, depending on the time horizon, and is easily extensible (e.g., check the other environment file).
+    It can be Markovian or not, depending on the time horizon, and is easily extensible (e.g., check the other environment files).
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}

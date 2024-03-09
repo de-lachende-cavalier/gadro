@@ -2,7 +2,7 @@ from env_frames import FramesEnvironment
 
 
 class FramesTestEnvironment(FramesEnvironment):
-    """A testing environment for the Frames Environment, just as we have one for the base case."""
+    """A testing environment for the Frames Environment, analogous to the one we built for the base case."""
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
