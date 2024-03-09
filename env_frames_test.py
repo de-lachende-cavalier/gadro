@@ -38,7 +38,7 @@ class FramesTestEnvironment(FramesEnvironment):
         reward = 1 if correct_guess else 0
 
         # we've seen all the frames
-        terminated = self.current_frame_idx == self._num_frames
+        terminated = self.current_frame_idx == self._num_frames - 1
 
         observation = self._get_observation(self.current_frame_idx)
         info = self._get_info()
