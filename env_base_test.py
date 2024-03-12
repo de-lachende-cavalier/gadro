@@ -1,5 +1,3 @@
-import numpy as np
-
 from env_base import BaseEnvironment
 
 
@@ -27,6 +25,7 @@ class BaseTestEnvironment(BaseEnvironment):
 
     def step(self, action):
         self.current_frame_idx = min(self.current_frame_idx + 1, self._num_frames - 1)
+        print(self.current_frame_idx)
 
         chosen_patch_centre = self.patch_centres_all_frames[self.current_frame_idx][
             action
