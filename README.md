@@ -1,4 +1,4 @@
-#  INMCA_Buruian
+#  gadro
 
 [GazeDeploy](https://github.com/phuselab/GazeDeploy) (more or less), but using Reinforcement Learning.
 
