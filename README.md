@@ -1,6 +1,6 @@
 #  gadro
 
-[GazeDeploy](https://github.com/phuselab/GazeDeploy) (more or less), but using Reinforcement Learning.
+[GazeDeploy](https://github.com/phuselab/GazeDeploy) (more or less), but using Deep Reinforcement Learning.
 
 ## Running things
 
