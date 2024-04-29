@@ -2,11 +2,11 @@
 
 [GazeDeploy](https://github.com/phuselab/GazeDeploy) (more or less), but using Deep Reinforcement Learning.
 
-## Running things
+## Running the code
 
 The code uses `python 3.11.8`. To run it, do the following:
 
-1. Get the data from phuselab's SFTP server.
+1. Get the data from [PHuSe Lab](https://phuselab.di.unimi.it/)'s SFTP server.
     1. (optional) Spin up a virtual environment.
 2. Install all the requirements (i.e, `pip install -r requirements.txt`).
 3. Run `utils_extract_frames.py`.
