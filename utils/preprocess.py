@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from scipy.spatial.distance import euclidean
 
-from utils_data import get_feature_frames, get_mat_data
+from data import get_feature_frames, get_mat_data
 
 
 def compute_frame_features(vid_filename):

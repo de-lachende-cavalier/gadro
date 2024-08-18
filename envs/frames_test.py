@@ -1,11 +1,8 @@
-from env_base import BaseEnvironment
+from frames import FramesEnvironment
 
 
-class BaseTestEnvironment(BaseEnvironment):
-    """A subclass of the Base Environment used exclusively for testing purposes.
-
-    The only difference from the Base Environment is that frames are presented in order, as they would be when watching the original video.
-    """
+class FramesTestEnvironment(FramesEnvironment):
+    """A testing environment for the Frames Environment, analogous to the one we built for the base case."""
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -25,7 +22,6 @@ class BaseTestEnvironment(BaseEnvironment):
 
     def step(self, action):
         self.current_frame_idx = min(self.current_frame_idx + 1, self._num_frames - 1)
-        print(self.current_frame_idx)
 
         chosen_patch_centre = self.patch_centres_all_frames[self.current_frame_idx][
             action
